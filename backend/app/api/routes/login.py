@@ -9,16 +9,17 @@ if os.getenv("MIRROR_TESTS"):
 else:
     from ...service import users as service
 from ...settings import TEMPLATES as templates
-from ..deps import oauth2_dep, unauthed, get_token_from_cookies
+from ..deps import oauth2_dep, unauthed, get_db
+from sqlalchemy.orm import Session
 
 
 router = APIRouter(tags=["login","registration"])
 
 
 @router.get("/")
-async def main_link(request : Request, token:str = Depends(oauth2_dep)):
+async def main_link(request : Request, token:str = Depends(oauth2_dep), db: Session = Depends(get_db)):
     try:
-        user = service.get_curret_user(token = token)
+        user = service.get_curret_user(db=db, token = token)
         response = RedirectResponse(url = f"/users/{user.username}")
         response.status_code = 302
         print(f"Redirecting to /users/{user.username}") 
@@ -28,9 +29,9 @@ async def main_link(request : Request, token:str = Depends(oauth2_dep)):
 
 
 @router.get("/registration")
-async def registration_page(request : Request):
+async def registration_page(request : Request, db: Session = Depends(get_db)):
     try:
-        if ((token := request.cookies.get("access_token")) and (user := service.get_curret_user(token=token))):
+        if ((token := request.cookies.get("access_token")) and (user := service.get_curret_user(db=db, token=token))):
             response = RedirectResponse(url = f"/users/{user.username}")
             response.status_code = 302
         else:
@@ -42,13 +43,13 @@ async def registration_page(request : Request):
 
 
 @router.post("/registration")
-async def registration_user(request : Request, 
+async def registration_user(request : Request, db: Session = Depends(get_db),
                       username: str = Form(...),
                       email:str = Form(...),
                       password:str = Form(...)):
     try:
         user = User(username=username, email=email, password=service.get_hash(password))
-        service.create(user)
+        service.create(db=db, user=user)
         response = RedirectResponse(url="/login")
         response.status_code = 302
         return response
@@ -61,7 +62,7 @@ async def registration_user(request : Request,
     
 
 @router.get("/login")
-async def login_page(requets: Request):
+async def login_page(requets: Request, db: Session = Depends(get_db)):
     try:
         return templates.TemplateResponse("login_page.html", {"request":requets})
     except Exception as ex:
@@ -69,11 +70,11 @@ async def login_page(requets: Request):
     
 
 @router.post("/login")
-async def login_user(request : Request,
+async def login_user(request : Request, db: Session = Depends(get_db),
                username : str = Form(...),
                password : str = Form(...)):
     try:
-        db_user = service.auth_user(username = username, plain=password)
+        db_user = service.auth_user(db=db, username = username, plain=password)
     except Missing:
         raise HTTPException(status_code=401, detail="Invalid username or password")
 

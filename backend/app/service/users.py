@@ -3,12 +3,13 @@ from jose import jwt, JWTError
 from datetime import timedelta, datetime
 from fastapi import Request
 from ..errors import Duplicate, Missing
-import os 
+import os
+from sqlalchemy.orm import Session
 
 if os.getenv("MIRROR_UNIT_TEST"):
     from app.tests.unit.data import users as data
 else:
-    from ..data import users as data
+    from ..data import users_postgre as data
 
 from passlib.context import CryptContext
 from ..settings import SECRET_KEY, ALGORITHM
@@ -37,27 +38,27 @@ def get_jwt_username(token : str) -> str | None:
     
 
 
-def get_curret_user(token : str) -> User | None:
+def get_curret_user(db : Session, token : str) -> User | None:
     """Декодирование токена доступа и возврат объекта User"""
     if not (username := get_jwt_username(token)):
         return None
-    if (user := lookup_user(username)):
+    if (user := lookup_user(db, username)):
         return user
     return None
 
 
-def lookup_user(username : str) -> User | None:
+def lookup_user(db : Session, username : str) -> User | None:
     """Возврат совподающего пользователя из базы данных для строки name"""
     try:
-        if (user := data.get_one(username)):
+        if (user := data.get_one(db, username)):
             return user
     except Missing:
         return None
     
 
-def auth_user(username : str, plain : str) -> User | None:
+def auth_user(db : Session, username : str, plain : str) -> User | None:
     """Аутентификация пользователя name и plain пароль"""
-    if not (user := lookup_user(username = username)):
+    if not (user := lookup_user(db, username = username)):
         return None
     if not verify_password(plain, user.password):
         return None
@@ -75,21 +76,21 @@ def create_access_token(data: dict, expires: timedelta | None = None):
     return encoded_jwt
 
 
-def get_one(username : str) -> User:
-    return data.get_one(username)
+def get_one(db : Session, username : str) -> User:
+    return data.get_one(db, username)
 
     
-def get_all() -> list[User]:
-    return data.get_all()
+def get_all(db : Session) -> list[User]:
+    return data.get_all(db)
 
 
-def create(user : User) -> User:
-    return data.create(user)
+def create(db : Session, user : User) -> User:
+    return data.create(db, user)
 
 
-def modify(user : User) -> User:
-    return data.modify(user)
+def modify(db : Session, user : User) -> User:
+    return data.modify(db, user)
 
 
-def delete(user : User) -> bool:
-    return data.delete()
+def delete(db : Session, user : User) -> bool:
+    return data.delete(db, user)

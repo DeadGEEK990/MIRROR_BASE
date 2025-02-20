@@ -6,8 +6,9 @@ from datetime import timedelta, datetime
 
 from ...models import User
 from ...errors import Duplicate, Missing
-from ..deps import unauthed, oauth2_dep
+from ..deps import unauthed, oauth2_dep, get_db
 from ...settings import TEMPLATES as templates
+from sqlalchemy.orm import Session
 
 if os.getenv("MIRROR_TESTS"):
     from ...tests.fake.service import users as service
@@ -37,8 +38,8 @@ async def get_access_token(token : str = Depends(oauth2_dep)) -> dict:
 
 
 @router.get("/")
-async def get_all():
-    return service.get_all()
+async def get_all(db: Session = Depends(get_db)):
+    return service.get_all(db=db)
 
 
 @router.get("/{username}")

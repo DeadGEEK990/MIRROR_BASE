@@ -3,6 +3,10 @@ from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
 from jose import JWTError
 
+from sqlalchemy.orm import Session
+from ..db.init_postgre import SessionLocal
+from typing import Generator
+
 
 def unauthed():
     raise HTTPException(status_code=302, detail="Redirecting to registration", headers={"Location": "/registration"})
@@ -29,3 +33,12 @@ def oauth2_dep(token: str = Depends(get_token_from_cookies)):
         return token
     except JWTError:
         unauthed()
+
+
+def get_db() -> Generator[Session, None, None]:
+    """Предоставляет сессию базы данных на время жизненного цикла запроса."""
+    db = SessionLocal()
+    try:
+        yield db  # Выдаем сессию в функцию, которая вызывает зависимость
+    finally:
+        db.close()
