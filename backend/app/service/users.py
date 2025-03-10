@@ -6,10 +6,7 @@ from ..errors import Duplicate, Missing
 import os
 from sqlalchemy.orm import Session
 
-if os.getenv("MIRROR_UNIT_TEST"):
-    from app.tests.unit.data import users as data
-else:
-    from ..data import users_postgre as data
+from ..data import users_postgre as data
 
 from passlib.context import CryptContext
 from ..settings import SECRET_KEY, ALGORITHM

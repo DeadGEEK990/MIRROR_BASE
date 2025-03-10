@@ -30,7 +30,7 @@ def check_duplicate_mail(db: Session, email: str) -> None:
 
 
 def get_one(db: Session, username: str) -> User:
-    user = db.query(User).filter(User.username == username).first()
+    user = db.query(UserBase).filter(UserBase.username == username).first()
     if user:
         return userbase_to_user(user)
     else:
