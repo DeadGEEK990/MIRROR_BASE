@@ -43,10 +43,10 @@ async def get_all(db: Session = Depends(get_db)):
 
 
 @router.get("/{username}")
-async def user_page(request: Request, username:str, token:str = Depends(oauth2_dep)):
+async def user_page(request: Request, username:str, token:str = Depends(oauth2_dep), db: Session = Depends(get_db)):
     try:
-        user = service.get_one(username)
-        can_edit = service.get_curret_user(token) == user
+        user = service.get_one(db, username)
+        can_edit = service.get_current_user(db, token) == user
 
         return templates.TemplateResponse("user_page.html", {
             "request": request,  # Это нужно для работы Jinja2
@@ -55,10 +55,14 @@ async def user_page(request: Request, username:str, token:str = Depends(oauth2_d
             "about": user.about,
             "can_edit": can_edit
         })
+    except Missing as ex:
+        raise HTTPException(status_code = 404, detail = ex.msg)
     except Exception as ex:
-        raise HTTPException(status_code=404, detail="Page not founded")
+        raise HTTPException(status_code=404, detail=f"Oops... Fuck me.")
     
 
 @router.delete("/{username}")
 async def user_page_delete(request: Request, username:str, token:str = Depends(oauth2_dep)):
     pass
+
+print(router.routes)  # Для проверки зарегистрированных маршрутов

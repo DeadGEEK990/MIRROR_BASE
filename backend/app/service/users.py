@@ -35,7 +35,7 @@ def get_jwt_username(token : str) -> str | None:
     
 
 
-def get_curret_user(db : Session, token : str) -> User | None:
+def get_current_user(db : Session, token : str) -> User | None:
     """Декодирование токена доступа и возврат объекта User"""
     if not (username := get_jwt_username(token)):
         return None

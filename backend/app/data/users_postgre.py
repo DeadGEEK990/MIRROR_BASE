@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from ..models import UserBase, User
+from ..models import UserBase, User, pydantic_to_sqlalchemy, sqlalchemy_to_pydantic
 from ..errors import Duplicate, Missing, MailDuplicate
 from sqlalchemy.exc import IntegrityError
 
@@ -32,14 +32,16 @@ def check_duplicate_mail(db: Session, email: str) -> None:
 def get_one(db: Session, username: str) -> User:
     user = db.query(UserBase).filter(UserBase.username == username).first()
     if user:
-        return userbase_to_user(user)
+        #return userbase_to_user(user)
+        return sqlalchemy_to_pydantic(user, User)
     else:
         raise Missing(msg=f"User {username} not found")
 
 
 def get_all(db: Session) -> list[User]:
     userbase_list = db.query(UserBase).all()
-    return [userbase_to_user(userbase) for userbase in userbase_list]
+    #return [userbase_to_user(userbase) for userbase in userbase_list]
+    return [sqlalchemy_to_pydantic(userbase, User) for userbase in userbase_list]
 
 
 def create(db: Session, user: User) -> User:
@@ -49,7 +51,8 @@ def create(db: Session, user: User) -> User:
         db.commit()
         db.refresh(userbase)
         
-        return userbase_to_user(userbase)
+        #return userbase_to_user(userbase)
+        return sqlalchemy_to_pydantic((userbase, User))
     except IntegrityError:
         db.rollback()  
         raise Duplicate(msg=f"User with email {user.email} already exists")
@@ -71,11 +74,13 @@ def modify(db: Session, user: User) -> User:
     db.commit()
     db.refresh(existing_userbase)
     
-    return userbase_to_user(existing_userbase)
+    #return userbase_to_user(existing_userbase)
+    return sqlalchemy_to_pydantic(existing_userbase, User)
 
 
 def delete(db: Session, user: User) -> None:
-    userbase = user_to_userbase(user)
+    #userbase = user_to_userbase(user)
+    userbase = pydantic_to_sqlalchemy(user, UserBase)
     
     existing_userbase = db.query(UserBase).filter(UserBase.username == userbase.username).first()
     

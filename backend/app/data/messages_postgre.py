@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from typing import List, Dict, Any
 from sqlalchemy.orm.query import Query
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
+from sqlalchemy.orm.exc import NoResultFound
 
 
 def get_one(db: Session, message_id: int) -> Message:

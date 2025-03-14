@@ -70,6 +70,13 @@ class Message(BaseModel):
         from_attributes = True
 
 
+class Chat(BaseModel):
+    id : int
+    title: str
+    users : list[User]
+    messages: list[Message]
+
+
 ##########Модели PostgreSQL###################
 
 
