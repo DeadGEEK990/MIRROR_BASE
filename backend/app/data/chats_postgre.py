@@ -1,11 +1,72 @@
 from sqlalchemy.orm import Session
-from ..models import ChatBase, Chat, pydantic_to_sqlalchemy, sqlalchemy_to_pydantic
+from ..models import ChatBase, Chat, pydantic_to_sqlalchemy, sqlalchemy_to_pydantic, User, UserBase, Message, MessageBase
 from ..errors import Duplicate, Missing
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict, Any
 from sqlalchemy.orm.query import Query
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm.exc import NoResultFound
+from datetime import datetime
+
+
+def add_user_to_chat(db: Session, chat_id: int, username: str) -> bool:
+    try:
+        chat = db.query(ChatBase).filter(ChatBase.id == chat_id).first()
+        user = db.query(UserBase).filter(UserBase.username == username).first()
+        if not chat or not user:
+            return False
+        if user not in chat.users:
+            chat.users.append(user)
+            db.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        db.rollback()
+        return False
+
+
+def remove_user_from_chat(db: Session, chat_id: int, username: str) -> bool:
+    try:
+        chat = db.query(ChatBase).filter(ChatBase.id == chat_id).first()
+        user = db.query(UserBase).filter(UserBase.username == username).first()
+        if not chat or not user:
+            return False
+        if user in chat.users:
+            chat.users.remove(user)
+            db.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        db.rollback()
+        return False
+
+
+def add_message_to_chat(db: Session, chat_id: int, message_pydantic: Message, username : str) -> bool:
+    try:
+        chat = db.query(ChatBase).filter(ChatBase.id == chat_id).first()
+        user = db.query(UserBase).filter(UserBase.username == username).first()
+        if not chat or not user:
+            return False
+        message = pydantic_to_sqlalchemy(message_pydantic, MessageBase)
+        db.add(message)
+        db.commit()
+        return True
+    except SQLAlchemyError:
+        db.rollback()
+        return False
+
+
+def delete_message_from_chat(db: Session, message_id: int) -> bool:
+    try:
+        message = db.query(MessageBase).filter(MessageBase.id == message_id).first()
+        if message:
+            db.delete(message)
+            db.commit()
+            return True
+        return False
+    except SQLAlchemyError:
+        db.rollback()
+        return False
 
 
 def get_one(db : Session, chat_id : int) -> Chat:

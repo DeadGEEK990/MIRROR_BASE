@@ -119,7 +119,7 @@ class ChatBase(Base):
 class MessageBase(Base):
     __tablename__ = 'messages'
 
-    id = Column(Integer, primary_key=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     content = Column(Text, nullable=False)  # Текст сообщения
     timestamp = Column(DateTime, default=datetime.utcnow)  # Время отправки
     username = Column(String, ForeignKey('users.username', ondelete='CASCADE'))  # Пользователь, отправивший сообщение
