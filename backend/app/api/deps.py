@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 from ..db.init_postgre import SessionLocal
 from typing import Generator
 
+from fastapi import Depends, HTTPException, Request
+from jose import jwt  # Если вы используете JWT токены
+from ..settings import SECRET_KEY, ALGORITHM
+
 
 def unauthed():
     raise HTTPException(status_code=302, detail="Redirecting to registration", headers={"Location": "/registration"})
 
-from fastapi import Depends, HTTPException, Request
-from jose import jwt  # Если вы используете JWT токены
-from ..settings import SECRET_KEY, ALGORITHM
 
 # Зависимость для получения токена из cookies
 def get_token_from_cookies(request: Request) -> str:

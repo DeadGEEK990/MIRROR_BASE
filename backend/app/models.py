@@ -34,7 +34,7 @@ def pydantic_to_sqlalchemy(pydantic_model: P, sqlalchemy_model: Type[T]) -> T:
     :return: Экземпляр SQLAlchemy модели
     """
     # Получаем данные из Pydantic модели в виде словаря
-    pydantic_dict = pydantic_model.dict()
+    pydantic_dict = pydantic_model.dict(exclude={"id"})  # исключаем поле 'id'
 
     # Передаем этот словарь в конструктор SQLAlchemy модели
     return sqlalchemy_model(**pydantic_dict)
@@ -49,7 +49,7 @@ class User(BaseModel):
 
 
 class PublicUserData(User):
-    password: str = None
+    password: Optional[str] = None
 
 
 class LoginUser(BaseModel):
@@ -58,23 +58,21 @@ class LoginUser(BaseModel):
 
 
 class Message(BaseModel):
-    id: int
+    id: Optional[int] = None
     content: str
-    timestamp: datetime
+    timestamp: Optional[datetime] = None
     username: int
     chat_id: int
-    author: Optional[str] = None
-    chat: Optional[int] = None
 
     class Config:
         from_attributes = True
 
 
 class Chat(BaseModel):
-    id : int
+    id : Optional[int] = None
     title: str
-    users : list[User]
-    messages: list[Message]
+    users : Optional[list[PublicUserData]] = None
+    messages: list[Message] = []
 
 
 ##########Модели PostgreSQL###################
@@ -114,6 +112,13 @@ class ChatBase(Base):
 
     users = relationship('UserBase', secondary='chat_users', back_populates='chats')
     messages = relationship('MessageBase', back_populates='chat')
+
+    def __init__(self, title, users=None, messages=None):
+        self.title = title
+        if users:
+            self.users = users
+        if messages:
+            self.messages = messages
 
 
 class MessageBase(Base):

@@ -64,5 +64,3 @@ async def user_page(request: Request, username:str, token:str = Depends(oauth2_d
 @router.delete("/{username}")
 async def user_page_delete(request: Request, username:str, token:str = Depends(oauth2_dep)):
     pass
-
-print(router.routes)  # Для проверки зарегистрированных маршрутов

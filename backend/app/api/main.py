@@ -4,12 +4,13 @@ import uvicorn
 from ..service import users as service
 from ..models import User
 from ..errors import Duplicate, Missing
-from .routes import users, login
+from .routes import users, login, chat
 
 
 app = FastAPI()
 app.include_router(users.router)
 app.include_router(login.router)
+app.include_router(chat.router)
 #uvicorn backend.app.api.main:app --reload
 
 
