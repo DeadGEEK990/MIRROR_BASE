@@ -28,10 +28,17 @@ async def create_chat(request : Request, chat : Chat, db : Session = Depends(get
     return service_chats.create(db, chat)
 
 
-@router.post("/send")
+@router.patch("/send")
 async def send_message(request : Request, chat_id : int, content : str, token = Depends(oauth2_dep), db : Session = Depends(get_db)):
-    username = service_users.get_current_user(db, token)
-    in_chat:bool = service_chats.check_user_in_chat(db,chat_id,username)
-    if in_chat:
-        message = Message(content = content, username = username, chat_id = chat_id)
-        service_chats.
+    try:
+        username = service_users.get_current_user(db, token)
+        in_chat:bool = service_chats.check_user_in_chat(db,chat_id,username)
+        if in_chat:
+            message = Message(content = content, username = username, chat_id = chat_id)
+            service_chats.add_message_to_chat(db, message)
+            chat:Chat = service_chats.get_one(db, chat_id)
+            return chat
+        else:
+            return {'detail':'Ты не приглашен на эту вечеринку :('}
+    except Exception as ex:
+        raise HTTPException(status_code = 404, detail='Ops...')
