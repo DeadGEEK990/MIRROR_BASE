@@ -1,6 +1,10 @@
+from http.client import HTTPException
+
 from sqlalchemy.orm import Session
-from ..models import ChatBase, Chat, pydantic_to_sqlalchemy, sqlalchemy_to_pydantic, User, UserBase, Message, MessageBase
+from ..models import ChatBase, Chat, pydantic_to_sqlalchemy, sqlalchemy_to_pydantic, User, UserBase, Message, MessageBase, ChatCreated
 from ..errors import Duplicate, Missing
+from backend.app.settings import logger
+
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict, Any
 from sqlalchemy.orm.query import Query
@@ -104,7 +108,7 @@ def get_one(db : Session, chat_id : int) -> Chat:
 def get_all(db: Session) -> list[Chat]:
     try:
         chatbase_list = db.query(ChatBase).all()
-        return [sqlalchemy_to_pydantic(chatbase, Chat) for chatbase in chatbase_list]
+        return [chatbase.to_pydantic() for chatbase in chatbase_list]
     except SQLAlchemyError as e:
         raise Missing(msg=f"Database error occurred: {str(e)}")
     except NoResultFound:
@@ -113,18 +117,21 @@ def get_all(db: Session) -> list[Chat]:
         raise Missing(msg=f"An unexpected error occurred: {str(e)}")
 
 
-def create(db: Session, chat: Chat) -> Chat:
-    chatbase = pydantic_to_sqlalchemy(chat, ChatBase)
+def create(db: Session, chat: ChatCreated) -> Chat:
     try:
+        chatbase = ChatBase.from_pydantic(chat_created = chat, db = db)
         db.add(chatbase)
         db.commit()
         db.refresh(chatbase)
-        return sqlalchemy_to_pydantic(chatbase, Chat)
+        return chatbase.to_pydantic()
     except IntegrityError:
         db.rollback()
-        raise Duplicate(msg=f"Message with id={chat.id} already exists")
+        raise Duplicate(msg=f"Chat with id={chat.id} already exists")
     except SQLAlchemyError as e:
         raise Missing(msg=f"Database error occurred: {str(e)}")
+    except Exception as ex:
+        logger.info(f"Data cant create chat: {ex}")
+        raise ex
 
 
 def get_chats_by_filter(db: Session, filters: List[Dict[str, Any]]) -> List[Chat]:
@@ -143,6 +150,28 @@ def get_chats_by_filter(db: Session, filters: List[Dict[str, Any]]) -> List[Chat
     except Exception as e:
         raise Missing(msg=f"An unexpected error occurred: {str(e)}")
     return [sqlalchemy_to_pydantic(chatbase, Chat) for chatbase in chatbase_list]
+
+
+def get_all_chats_by_user(db: Session, username: str) -> List[Chat]:
+    try:
+        # Находим пользователя по username
+        user = db.query(UserBase).filter(UserBase.username == username).first()
+        if not user:
+            raise Missing(msg=f"User with username={username} not found")
+
+        # Ищем все чаты, где пользователь является участником
+        chats = db.query(ChatBase).filter(ChatBase.users.contains(user)).all()
+
+        # Преобразуем SQLAlchemy объекты в Pydantic модели
+        return [chat.to_pydantic() for chat in chats]
+    except SQLAlchemyError as e:
+        # Обработка ошибок базы данных
+        db.rollback()
+        raise Missing(msg=f"Database error occurred: {str(e)}")
+    except Exception as e:
+        # Обработка других ошибок
+        raise Missing(msg=f"An unexpected error occurred: {str(e)}")
+
 
 
 def delete(db: Session, chat_id: int) -> None:

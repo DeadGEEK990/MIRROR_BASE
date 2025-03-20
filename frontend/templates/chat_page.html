@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f7f7f7;
+        }
+
+        .sidebar {
+            width: 300px;
+            background-color: #2c3e50;
+            color: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar h2 {
+            margin-top: 0;
+            font-size: 24px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: none;
+            font-size: 14px;
+        }
+
+        .chat-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .chat-list li {
+            padding: 10px;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            transition: background-color 0.3s;
+        }
+
+        .chat-list li.active {
+            background-color: #34495e;
+        }
+
+        .chat-list li:hover {
+            background-color: #34495e;
+        }
+
+        .create-chat-btn {
+            width: 100%;
+            padding: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+
+        .create-chat-btn:hover {
+            background-color: #2980b9;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+        }
+
+        .chat-header {
+            padding: 20px;
+            border-bottom: 1px solid #ddd;
+            background-color: #f7f7f7;
+        }
+
+        .chat-header h2 {
+            margin: 0;
+            font-size: 24px;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #fafafa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #e1e1e1;
+            max-width: 70%;
+        }
+
+        .message.sent {
+            margin-left: auto;
+            background-color: #3498db;
+            color: white;
+        }
+
+        .message.received {
+            margin-right: auto;
+            background-color: #f1f1f1;
+        }
+
+        .chat-input {
+            display: flex;
+            padding: 10px;
+            border-top: 1px solid #ddd;
+            background-color: #f7f7f7;
+        }
+
+        .chat-input textarea {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            resize: none;
+            font-size: 16px;
+        }
+
+        .chat-input button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .chat-input button:hover {
+            background-color: #2980b9;
+        }
+    </style>
+</head>
+<body>
+    <!-- Боковая панель (список чатов) -->
+    <div class="sidebar">
+        <h2>Чаты</h2>
+        <input type="text" class="search-box" placeholder="Поиск чатов или пользователей">
+        <button class="create-chat-btn" onclick="openCreateChatModal()">Создать чат</button>
+        <ul class="chat-list" id="chat-list">
+            <!-- Список чатов будет загружен динамически -->
+        </ul>
+    </div>
+
+    <!-- Основная часть (выбранный чат) -->
+    <div class="main-content">
+        <div class="chat-header">
+            <h2 id="chat-title">Название чата</h2>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <!-- Сообщения будут загружены динамически -->
+        </div>
+        <div class="chat-input">
+            <textarea id="message-input" placeholder="Введите сообщение..."></textarea>
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <!-- Модальное окно для создания чата -->
+    <div id="create-chat-modal" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+        <h2>Создать новый чат</h2>
+        <label for="chat-title">Название чата:</label>
+        <input type="text" id="chat-title" placeholder="Введите название чата" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+        <label for="chat-users">Пользователи (через запятую):</label>
+        <textarea id="chat-users" rows="4" placeholder="Введите пользователей через запятую" style="width: 100%; padding: 8px; margin-bottom: 10px;"></textarea>
+        <button onclick="createChat()">Создать</button>
+        <button onclick="closeCreateChatModal()" style="background-color: #ccc; margin-left: 10px;">Отмена</button>
+    </div>
+
+    <script>
+        let activeChatId = null; // ID активного чата
+
+        // Функция для загрузки списка чатов
+        async function loadChats() {
+            try {
+                const response = await fetch('/chats/all');
+                if (!response.ok) {
+                    throw new Error('Ошибка при загрузке чатов');
+                }
+                const chats = await response.json();
+                const chatList = document.getElementById('chat-list');
+                chatList.innerHTML = ''; // Очищаем список чатов
+                chats.forEach(chat => {
+                    const li = document.createElement('li');
+                    li.textContent = chat.title;
+                    li.dataset.chatId = chat.id;
+                    li.addEventListener('click', () => selectChat(chat.id));
+                    chatList.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Функция для выбора чата
+        async function selectChat(chatId) {
+            activeChatId = chatId;
+            updateActiveChatStyle(chatId);
+            await loadChatMessages(chatId);
+            updateChatTitle(chatId);
+        }
+
+        // Функция для обновления стиля активного чата
+        function updateActiveChatStyle(chatId) {
+            const chatItems = document.querySelectorAll('.chat-list li');
+            chatItems.forEach(item => {
+                if (item.dataset.chatId === chatId.toString()) {
+                    item.classList.add('active');
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        // Функция для загрузки сообщений чата
+        async function loadChatMessages(chatId) {
+            try {
+                const response = await fetch(`/chats/${chatId}/messages`);
+                if (!response.ok) {
+                    throw new Error('Ошибка при загрузке сообщений');
+                }
+                const messages = await response.json();
+                const messagesContainer = document.getElementById('chat-messages');
+                messagesContainer.innerHTML = ''; // Очищаем контейнер сообщений
+                messages.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${message.sender === 'me' ? 'sent' : 'received'}`;
+                    messageDiv.textContent = message.content;
+                    messagesContainer.appendChild(messageDiv);
+                });
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Функция для обновления заголовка чата
+        async function updateChatTitle(chatId) {
+            try {
+                const response = await fetch(`/chats/${chatId}`);
+                if (!response.ok) {
+                    throw new Error('Ошибка при загрузке данных чата');
+                }
+                const chat = await response.json();
+                document.getElementById('chat-title').textContent = chat.title;
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        // Функция для отправки сообщения
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            if (message && activeChatId) {
+                try {
+                    const response = await fetch(`/chats/${activeChatId}/messages`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ content: message }),
+                    });
+                    if (!response.ok) {
+                        throw new Error('Ошибка при отправке сообщения');
+                    }
+                    input.value = '';
+                    await loadChatMessages(activeChatId); // Перезагружаем сообщения
+                } catch (error) {
+                    console.error('Error:', error);
+                }
+            }
+        }
+
+        // Функция для обработки параметров URL
+        function handleUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const chatId = urlParams.get('chat_id');
+            if (chatId) {
+                selectChat(chatId);
+            }
+        }
+
+        // Инициализация
+        window.onload = () => {
+            loadChats();
+            handleUrlParams();
+        };
+    </script>
+</body>
+</html>

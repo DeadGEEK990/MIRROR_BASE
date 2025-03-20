@@ -1,9 +1,12 @@
 from pydantic import BaseModel, EmailStr
 from datetime import datetime
-from typing import Union, Optional, TypeVar, Type
+from typing import Union, Optional, TypeVar, Type, List
 from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
+from backend.app.settings import logger
+from sqlalchemy.orm import Session
+
 
 ######### Вспомогательные функции ###########
 Base = declarative_base()
@@ -47,9 +50,21 @@ class User(BaseModel):
     password: str
     about: str = ""
 
+    def to_public_data(self) -> 'PublicUserData':
+        """
+        Преобразует модель User в Pydantic модель PublicUserData.
+        """
+        return PublicUserData(
+            username=self.username,
+            email=self.email,
+            about=self.about
+        )
 
-class PublicUserData(User):
-    password: Optional[str] = None
+
+class PublicUserData(BaseModel):
+    username: str
+    email: str
+    about: str = ""
 
 
 class LoginUser(BaseModel):
@@ -68,11 +83,27 @@ class Message(BaseModel):
         from_attributes = True
 
 
-class Chat(BaseModel):
-    id : Optional[int] = None
+class ChatCreateRequest(BaseModel):
+    chat_title: str
+    users: list[str]
+
+
+class ChatCreated(BaseModel):
+    id: Optional[int] = None
     title: str
-    users : Optional[list[PublicUserData]] = None
-    messages: list[Message] = []
+    chat_owner: PublicUserData
+    users: List[PublicUserData] = []
+
+class Chat(BaseModel):
+    id: Optional[int] = None
+    title: str
+    chat_owner: str
+    owner: PublicUserData  # Владелец чата
+    users: Optional[list[PublicUserData]] = None  # Список пользователей
+    messages: list[Message] = []  # Список сообщений
+
+    class Config:
+        from_attributes = True
 
 
 ##########Модели PostgreSQL###################
@@ -80,45 +111,135 @@ class Chat(BaseModel):
 
 class UserBase(Base):
     __tablename__ = 'users'
-    
-    username = Column(String, primary_key=True)
-    email = Column(String, unique=True, nullable=False)
-    password = Column(String, nullable=False)
-    about = Column(Text, default=None)
 
+    username = Column(String, primary_key=True)
+    email = Column(String, nullable=False)
+    password = Column(String, nullable=False)
+    about = Column(String, default="")
+
+    # Отношения
     chats = relationship('ChatBase', secondary='chat_users', back_populates='users')
     messages = relationship('MessageBase', back_populates='author')
 
-    def __init__(self, username, email, password, about=None):
-        self.username = username
-        self.email = email
-        self.password = password
-        self.about = about
+    def to_pydantic(self) -> 'PublicUserData':
+        """
+        Преобразует SQLAlchemy модель UserBase в Pydantic модель PublicUserData.
+        """
+        return PublicUserData(
+            username=self.username,
+            email=self.email,
+            about=self.about
+        )
 
 
 class ChatBase(Base):
-    #user1 = User(name="Alice")
-    #session.add(user1)
-    #session.commit()
-    #chat1 = Chat(title="General Chat")
-    #session.add(chat1)
-    #session.commit()
-    # Добавление пользователей в чаты
-    #chat1.users = [user1, user2]
     __tablename__ = 'chats'
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String, nullable=False)
 
+    owner_username = Column(String, ForeignKey('users.username'), nullable=False)
+    owner = relationship('UserBase', backref='owned_chats', lazy=True)
+
     users = relationship('UserBase', secondary='chat_users', back_populates='chats')
     messages = relationship('MessageBase', back_populates='chat')
 
-    def __init__(self, title, users=None, messages=None):
+    def __init__(self, title: str, owner: UserBase, users: list[UserBase] = None, messages: list[str] = None):
+        """
+        Инициализация объекта ChatBase.
+
+        :param title: Название чата
+        :param owner: Владелец чата (объект UserBase)
+        :param users: Список пользователей чата (объекты UserBase)
+        :param messages: Список сообщений в чате (объекты MessageBase)
+        """
         self.title = title
-        if users:
-            self.users = users
-        if messages:
-            self.messages = messages
+        self.owner = owner
+        self.owner_username = owner.username  # Устанавливаем owner_username
+
+        # Инициализация списка пользователей
+        self.users = users if users is not None else []
+        if owner not in self.users:
+            self.users.append(owner)  # Добавляем владельца в список пользователей, если его там нет
+
+        # Инициализация списка сообщений
+        self.messages = messages if messages is not None else []
+
+    @classmethod
+    def from_pydantic(cls, chat_created: ChatCreated, db: Session) -> 'ChatBase':
+        """
+        Преобразует Pydantic модель ChatCreated в SQLAlchemy модель ChatBase.
+        """
+        try:
+            # Получаем владельца чата из базы данных
+            owner = db.query(UserBase).filter(UserBase.username == chat_created.chat_owner.username).first()
+            if not owner:
+                raise ValueError(f"Владелец чата {chat_created.chat_owner.username} не найден")
+
+            # Получаем список пользователей из базы данных
+            users = []
+            for user_data in chat_created.users:
+                user = db.query(UserBase).filter(UserBase.username == user_data.username).first()
+                if not user:
+                    raise ValueError(f"Пользователь {user_data.username} не найден")
+                users.append(user)
+
+            # Создаем объект ChatBase
+            return cls(
+                title=chat_created.title,
+                owner=owner,
+                users=users
+            )
+        except Exception as ex:
+            logger.error(f"Convert from pydantic error: {ex}")
+            raise ex
+
+    def to_pydantic(self) -> 'Chat':
+        """
+        Преобразует SQLAlchemy модель ChatBase в Pydantic модель Chat.
+        """
+        # Преобразуем владельца чата в Pydantic модель
+        owner_pydantic = PublicUserData(
+            username=self.owner.username,
+            email=self.owner.email,
+            about=self.owner.about
+        )
+
+        # Преобразуем список пользователей в Pydantic модель
+        users_pydantic = [
+            PublicUserData(
+                username=user.username,
+                email=user.email,
+                about=user.about
+            )
+            for user in self.users
+        ]
+
+        # Преобразуем список сообщений в Pydantic модель
+        messages_pydantic = [
+            Message(
+                id=message.id,
+                content=message.content,
+                timestamp=message.timestamp,
+                username=message.username,
+                chat_id=message.chat_id
+            )
+            for message in self.messages
+        ]
+
+        # Создаем объект Pydantic модели Chat
+        return Chat(
+            id=self.id,
+            title=self.title,
+            chat_owner=owner_pydantic.username,
+            owner=owner_pydantic,
+            users=users_pydantic,
+            messages=messages_pydantic
+        )
+
+
+    def __str__(self):
+        return f"Title: {self.title}\nOwner: {self.owner}\nowner_username: {self.owner_username}\nusers:{self.users}"
 
 
 class MessageBase(Base):

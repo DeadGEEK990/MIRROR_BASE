@@ -45,14 +45,14 @@ def get_all(db: Session) -> list[User]:
 
 
 def create(db: Session, user: User) -> User:
-    userbase = user_to_userbase(user)
+    userbase = pydantic_to_sqlalchemy(user, UserBase)
     try:
         db.add(userbase)
         db.commit()
         db.refresh(userbase)
         
         #return userbase_to_user(userbase)
-        return sqlalchemy_to_pydantic((userbase, User))
+        return sqlalchemy_to_pydantic(userbase, User)
     except IntegrityError:
         db.rollback()  
         raise Duplicate(msg=f"User with email {user.email} already exists")

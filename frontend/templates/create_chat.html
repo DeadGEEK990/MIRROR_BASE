@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f7f7f7;
+        }
+        .container {
+            text-align: center;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .message {
+            margin-top: 20px;
+            font-size: 18px;
+            color: #333;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+        textarea {
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Создать новый чат</h1>
+        <label for="title">Название чата:</label>
+        <input type="text" id="title" placeholder="Введите название чата">
+
+        <label for="users">Пользователи (через запятую):</label>
+        <textarea id="users" rows="4" placeholder="Введите пользователей через запятую"></textarea>
+
+        <button id="create-chat-btn">Создать чат</button>
+        <div class="message" id="message"></div>
+    </div>
+
+    <script>
+    document.getElementById('create-chat-btn').addEventListener('click', async () => {
+        const chatTitle = document.getElementById('title').value;
+        const usersInput = document.getElementById('users').value;
+        const users = usersInput.split(',').map(user => user.trim()).filter(user => user); // Разбиваем пользователей по запятой и удаляем пробелы
+
+        if (!chatTitle || users.length === 0) {
+            document.getElementById('message').innerText = 'Пожалуйста, введите название чата и пользователей.';
+            return;
+        }
+
+        try {
+            const response = await fetch('/chats/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    chat_title: chatTitle,
+                    users: users  // Убедитесь, что users - это массив строк
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                document.getElementById('message').innerText = `Ошибка: ${errorData.detail}`;
+            } else {
+                const data = await response.json();
+                document.getElementById('message').innerText = data.message;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            document.getElementById('message').innerText = 'Ошибка при создании чата.';
+        }
+    });
+</script>
+
+</body>
+</html>
