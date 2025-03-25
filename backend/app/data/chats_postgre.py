@@ -67,21 +67,27 @@ def remove_user_from_chat(db: Session, chat_id: int, username: str) -> bool:
         return False
 
 
-def add_message_to_chat(db: Session, message_pydantic: Message) -> bool:
+def add_message_to_chat(db: Session, message_pydantic: Message) -> MessageBase:
     try:
-        username = Message.username
-        chat_id = Message.chat_id
-        chat = db.query(ChatBase).filter(ChatBase.id == chat_id).first()
-        user = db.query(UserBase).filter(UserBase.username == username).first()
-        if not chat or not user:
+        chat_exists = db.query(ChatBase).filter(ChatBase.id == message_pydantic.chat_id).first()
+        user_exists = db.query(UserBase).filter(UserBase.username == message_pydantic.username).first()
+
+        if not chat_exists or not user_exists:
             return False
-        message = pydantic_to_sqlalchemy(message_pydantic, MessageBase)
+
+        message = MessageBase.from_pydantic(message_pydantic, db)
+
         db.add(message)
         db.commit()
-        return True
-    except SQLAlchemyError:
+        return message
+    except SQLAlchemyError as e:
         db.rollback()
-        return False
+        logger.error(f"Database error adding message: {e}")
+        raise e
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Unexpected error: {e}")
+        raise e
 
 
 def delete_message_from_chat(db: Session, message_id: int) -> bool:
@@ -100,7 +106,7 @@ def delete_message_from_chat(db: Session, message_id: int) -> bool:
 def get_one(db : Session, chat_id : int) -> Chat:
     chat = db.query(ChatBase).filter(ChatBase.id == chat_id).first()
     if chat:
-        return sqlalchemy_to_pydantic(chat, Chat)
+        return chat.to_pydantic()
     else:
         raise Missing(msg=f"Message id={chat_id} not found")
 

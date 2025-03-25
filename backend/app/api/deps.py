@@ -1,5 +1,5 @@
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, WebSocket, WebSocketException
 from fastapi.responses import RedirectResponse
 from jose import JWTError
 
@@ -34,6 +34,25 @@ def oauth2_dep(token: str = Depends(get_token_from_cookies)):
         return token
     except JWTError:
         unauthed()
+
+
+async def websocket_token(websocket: WebSocket):
+    # Пробуем получить токен из:
+    # 1. Cookies
+    # 2. Query параметров (?token=...)
+
+    token = websocket._cookies.get("access_token")
+    if not token:
+        token = websocket.query_params.get("token")
+
+    if not token:
+        await websocket.close(code=WS_1008_POLICY_VIOLATION)
+        raise WebSocketException(
+            code=WS_1008_POLICY_VIOLATION,
+            reason="Missing authentication token"
+        )
+
+    return token
 
 
 def get_db() -> Generator[Session, None, None]:

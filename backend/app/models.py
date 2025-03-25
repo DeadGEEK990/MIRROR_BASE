@@ -76,7 +76,7 @@ class Message(BaseModel):
     id: Optional[int] = None
     content: str
     timestamp: Optional[datetime] = None
-    username: int
+    username: str
     chat_id: int
 
     class Config:
@@ -254,6 +254,56 @@ class MessageBase(Base):
     # Связи с пользователем и чатом
     author = relationship('UserBase', back_populates='messages')
     chat = relationship('ChatBase', back_populates='messages')
+
+    @classmethod
+    def from_pydantic(cls, message: Message, db: Session) -> 'MessageBase':
+        """
+        Преобразует Pydantic модель Message в SQLAlchemy модель MessageBase.
+
+        :param message: Pydantic модель сообщения
+        :param db: Сессия базы данных
+        :return: Экземпляр MessageBase
+        """
+        try:
+            # Получаем автора сообщения из базы данных
+            author = db.query(UserBase).filter(UserBase.username == message.username).first()
+            if not author:
+                raise ValueError(f"Автор сообщения {message.username} не найден")
+
+            # Получаем чат из базы данных
+            chat = db.query(ChatBase).filter(ChatBase.id == message.chat_id).first()
+            if not chat:
+                raise ValueError(f"Чат с ID {message.chat_id} не найден")
+
+            # Создаем объект MessageBase
+            return cls(
+                content=message.content,
+                username=message.username,
+                chat_id=message.chat_id,
+                timestamp=message.timestamp if message.timestamp else datetime.utcnow(),
+                author=author,
+                chat=chat
+            )
+        except Exception as ex:
+            logger.error(f"Ошибка преобразования Message в MessageBase: {ex}")
+            raise ex
+
+    def to_pydantic(self) -> Message:
+        """
+        Преобразует SQLAlchemy модель MessageBase в Pydantic модель Message.
+
+        :return: Экземпляр Message
+        """
+        return Message(
+            id=self.id,
+            content=self.content,
+            timestamp=self.timestamp,
+            username=self.username,
+            chat_id=self.chat_id
+        )
+
+    def __str__(self):
+        return f"Message(id={self.id}, content={self.content[:20]}..., username={self.username}, chat_id={self.chat_id})"
 
 
 ##############Промежуточные таблицы############################
