@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="sidebar">
+    <div style="padding: 15px; border-bottom: 1px solid #e1e1e1;">
+        <h3>Мои чаты</h3>
+        <button id="create-chat-btn">Создать чат</button>
+    </div>
+    <div id="chat-list">
+        {% for chat in request.user.chat_rooms.all %}
+        <div class="chat-list-item" data-chat-id="{{ chat.id }}">
+            {{ chat.name }}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="chat-area">
+    <div class="chat-header">
+        <h3 id="current-chat-name">Выберите чат</h3>
+    </div>
+    <div class="messages" id="chat-messages">
+        <!-- Сообщения будут загружаться здесь -->
+    </div>
+    <div class="message-input" id="message-input-area" style="display: none;">
+        <textarea id="message-text" rows="3" style="width: 100%;" placeholder="Введите сообщение..."></textarea>
+        <button id="send-message-btn">Отправить</button>
+    </div>
+</div>
+
+<!-- Добавим скрытый элемент для хранения текущего chat_id -->
+<input type="hidden" id="current-chat-id" value="">
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+    let chatSocket = null;
+    let currentChatId = null;
+
+    // Функция для установки WebSocket соединения
+    function connectToChat(chatId) {
+        // Закрываем предыдущее соединение, если оно есть
+        if (chatSocket) {
+            chatSocket.close();
+        }
+
+        // Устанавливаем новое соединение
+        chatSocket = new WebSocket(
+            'ws://' + window.location.host +
+            '/ws/chat/' + chatId + '/'
+        );
+
+        // Обработчики событий WebSocket
+        chatSocket.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            appendMessage(data.sender, data.message, new Date(data.timestamp));
+        };
+
+        chatSocket.onclose = function(e) {
+            console.error('Chat socket closed unexpectedly');
+            // Можно добавить попытку переподключения
+        };
+
+        chatSocket.onerror = function(e) {
+            console.error('WebSocket error:', e);
+        };
+    }
+
+    // Функция для добавления сообщения в чат
+    function appendMessage(sender, message, timestamp) {
+        const formattedTime = timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        const messageHtml = `
+            <div class="message">
+                <strong>${sender}:</strong> ${message}
+                <span class="timestamp">${formattedTime}</span>
+            </div>
+        `;
+        $('#chat-messages').append(messageHtml);
+        scrollToBottom();
+    }
+
+    // Функция для прокрутки вниз
+    function scrollToBottom() {
+        const messagesContainer = $('#chat-messages');
+        messagesContainer.scrollTop(messagesContainer[0].scrollHeight);
+    }
+
+    // Обработчик клика по чату
+    $('.chat-list-item').click(function() {
+        const chatId = $(this).data('chat-id');
+        currentChatId = chatId;
+        $('#current-chat-id').val(chatId);
+        loadChat(chatId);
+        connectToChat(chatId);
+    });
+
+    // Кнопка создания чата
+    $('#create-chat-btn').click(function() {
+        window.location.href = "{% url 'chats:chat_create' %}";
+    });
+
+    // Функция загрузки чата (истории сообщений)
+    function loadChat(chatId) {
+        $.get(`/chats/${chatId}/`, function(data) {
+            $('#chat-messages').html(data);
+            $('#message-input-area').show();
+            scrollToBottom();
+
+            // Помечаем активный чат
+            $('.chat-list-item').removeClass('active-chat');
+            $(`.chat-list-item[data-chat-id="${chatId}"]`).addClass('active-chat');
+
+            // Обновляем название чата в заголовке
+            $('#current-chat-name').text($(`.chat-list-item[data-chat-id="${chatId}"]`).text());
+        });
+    }
+
+    // Обработчик отправки сообщения
+    $('#send-message-btn').click(sendMessage);
+
+    // Отправка сообщения по Enter (но с переносом строки по Shift+Enter)
+    $('#message-text').keypress(function(e) {
+        if (e.which === 13 && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    function sendMessage() {
+        const messageText = $('#message-text').val().trim();
+        const chatId = $('#current-chat-id').val();
+
+        if (messageText && chatId) {
+            if (chatSocket && chatSocket.readyState === WebSocket.OPEN) {
+                // Отправляем через WebSocket
+                chatSocket.send(JSON.stringify({
+                    'message': messageText,
+                    'timestamp': new Date().toISOString()
+                }));
+
+                // Очищаем поле ввода
+                $('#message-text').val('');
+            } else {
+                alert('Соединение с чатом не установлено. Попробуйте перезагрузить страницу.');
+            }
+        }
+    }
+
+    // При закрытии страницы закрываем соединение
+    $(window).on('beforeunload', function() {
+        if (chatSocket) {
+            chatSocket.close();
+        }
+    });
+});
+</script>
+
+<style>
+    .message {
+        margin-bottom: 10px;
+        padding: 8px 12px;
+        background-color: #f5f5f5;
+        border-radius: 4px;
+    }
+    .timestamp {
+        color: #999;
+        font-size: 0.8em;
+        margin-left: 10px;
+    }
+    .active-chat {
+        background-color: #e3f2fd;
+        font-weight: bold;
+    }
+    .messages {
+        height: 70vh;
+        overflow-y: auto;
+        padding: 10px;
+        margin-bottom: 10px;
+        border: 1px solid #e1e1e1;
+        border-radius: 4px;
+    }
+    .message-input textarea {
+        resize: none;
+        margin-bottom: 5px;
+    }
+</style>
+{% endblock %}

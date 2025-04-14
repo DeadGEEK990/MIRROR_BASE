@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Все чаты</title>
+</head>
+<body>
+    <h1>Все чаты</h1>
+
+    <form method="post">
+        {% csrf_token %}
+        {{ chat_forms.management_form }}
+
+        {% for form in chat_forms %}
+            <div class="chat-form" style="margin-bottom: 20px; border: 1px solid #ccc; padding: 10px;">
+                {{ form.as_p }}
+            </div>
+        {% endfor %}
+
+        <button type="submit">Сохранить изменения</button>
+    </form>
+
+</body>
+</html>

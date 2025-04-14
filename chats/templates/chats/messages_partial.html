@@ -1,0 +1,14 @@
+{% for form in formset %}
+<div class="message">
+    <div class="message-header">
+        <strong>{{ form.instance.sender.username }}</strong>
+        <span class="timestamp">{{ form.instance.timestamp|date:"H:i d.m.Y" }}</span>
+    </div>
+    <div class="message-content">
+        {{ form.content.value }}
+    </div>
+    {% if form.read.value %}
+    <div class="message-status">Прочитано</div>
+    {% endif %}
+</div>
+{% endfor %}
