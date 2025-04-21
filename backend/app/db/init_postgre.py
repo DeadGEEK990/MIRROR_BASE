@@ -4,7 +4,7 @@ from sqlalchemy.exc import OperationalError  # Импортируем исклю
 from ..models import Base
 
 # Новый URL для подключения к базе данных 'mirror_postgre'
-DATABASE_URL = "postgresql://postgres:SuperPass@213.108.21.219/mirror_database"
+DATABASE_URL = "FAKE"
 
 # Инициализация подключения к серверу PostgreSQL
 engine = create_engine(DATABASE_URL)
