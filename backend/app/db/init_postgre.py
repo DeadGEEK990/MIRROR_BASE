@@ -2,9 +2,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError  # Импортируем исключение для обработки ошибок подключения
 from ..models import Base
+from dotenv import load_dotenv
+import os
+
 
 # Новый URL для подключения к базе данных 'mirror_postgre'
-DATABASE_URL = "FAKE"
+DATABASE_URL = os.getenv('DATABASE_URL')
 
 # Инициализация подключения к серверу PostgreSQL
 engine = create_engine(DATABASE_URL)
